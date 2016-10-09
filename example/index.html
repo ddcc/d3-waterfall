@@ -1,0 +1,32 @@
+<html>
+<head>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="../src/waterfall.js"></script>
+<style type="text/css">
+a, a:visited {
+    color: red;
+}
+
+select {
+    position: relative;
+}
+
+div.tooltip {
+    background: #000;
+    border: 0px;
+    border-radius: 3px;
+    color: #fff;
+    padding: 8px;
+    text-align: center;
+}
+</style>
+</head>
+<body>
+<a href="#" onclick="this.href = w.canvas.node().toDataURL('image/png');" download="waterfall.png">Download</a>
+<div id="waterfall"></div>
+<script>
+var w = new Waterfall("#waterfall", "data.csv", "frequencies.json", true, true, true);
+getData(w, initDisplay);
+</script>
+</body>
+</html>
