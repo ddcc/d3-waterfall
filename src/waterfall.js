@@ -8,8 +8,6 @@
 function Waterfall(id, dataURL, annotationURL, isAnimatable, isSelectable, isZoomable) {
     // Assume a 50px margin around the waterfall display
     this.margin = 50;
-    // Assume a 2 min time step for the y-axis if no next step
-    this.yStep = 2 * 60 * 1000;
 
     // Store the parsed CSV data and URL
     this.data = null;
@@ -173,36 +171,56 @@ function parseCSVData(response) {
     function parseRow(d) {
         var dateTime = parser(d[0] + d[1]), // date + time
             freqLow = +d[2], // Hz low
-            freqHigh = +d[3], // Hz high
-            dB = +d[6]; // dB
+            freqHigh = +d[3]; // Hz high
+        freqStep = +d[4]; // Hz step
 
-        // Skip NaN results
-        if (isNaN(dB)) return null;
+        results = [];
+        for (i = 6; i < d.length; i++) {
+            var dB = +d[i]; // dB
+
+            // Skip NaN results
+            if (isNaN(dB)) continue;
+
+            dbRange = [Math.min(dbRange[0], dB), Math.max(dbRange[1], dB)];
+
+            results.push({
+                dateTime: dateTime,
+                freq: freqLow + (i - 6) * freqStep,
+                dB: dB,
+            });
+        }
 
         // Compute the fixed frequency step, and frequency/time/dB range
-        freqStep = freqHigh - freqLow,
         freqRange = [Math.min(freqRange[0], freqLow), Math.max(freqRange[1], freqHigh)];
-        timeRange = [Math.min(timeRange[0], dateTime),Math.max(timeRange[1], dateTime)];
-        dbRange = [Math.min(dbRange[0], dB), Math.max(dbRange[1], dB)];
+        timeRange = [Math.min(timeRange[0], dateTime), Math.max(timeRange[1], dateTime)];
 
-        return {
-            dateTime: dateTime,
-            freq: freqLow,
-            dB: dB,
-        };
+        return results;
     }
 
     var array = d3.csvParseRows(response, parseRow);
-    // Convert the raw values from an 1 * (N x M) to N * M array
+    // Convert the raw values from an 1 * (N x M) to N * M array,
+    // where N is the number of sweeps across the frequency range,
+    // and M is the number of readings in each sweep.
     var values = [];
     var i = -1;
     array.forEach(function(d) {
-        if (d.freq != array[0].freq) {
-            values[i].push(d);
-        } else {
-            values[++i] = [d];
+        for (j = 0; j < d.length; j++) {
+            if (d[j].freq != array[0][0].freq) {
+                values[i].values.push({
+                    freq: d[j].freq,
+                    dB: d[j].dB,
+                });
+            } else {
+                values[++i] = {
+                    dateTime: d[j].dateTime,
+                    values: [],
+                };
+            }
         }
     });
+
+    // Adjust the time range by the estimated width/duration of the last step
+    timeRange[1] += +values[values.length - 1].dateTime - +values[values.length - 2].dateTime;
 
     // Create the data object with metadata and values array
     w.data = { freqStep: freqStep, freqRange: freqRange, timeRange: timeRange, dbRange: dbRange, values: values };
@@ -241,9 +259,6 @@ function initDisplay(w) {
     w.x.domain(w.data.freqRange);
     w.y.domain(w.data.timeRange);
     w.z.domain(w.data.dbRange);
-
-    // Adjust the y-axis domain to fit the width/duration of the last step
-    w.y.domain([w.y.domain()[0], +w.y.domain()[1] + w.yStep]);
 
     // Set the canvas size to the element size, and draw an invisible svg rectangle on top
     w.canvas.attr("width", elementWidth)
@@ -319,7 +334,7 @@ function renderDisplay(w) {
     if (w.isAnimatable && window.requestAnimationFrame) {
         var i = 0;
         var drawStep = function(timestamp) {
-            drawRow.call({ context: context, x: w.x, y: w.y, z: w.z, yStep: w.yStep }, w.data.values[i], i, w.data.values);
+            drawRow.call({ context: context, x: w.x, y: w.y, z: w.z }, w.data.values[i], i, w.data.values);
 
             // Cache the image data if done
             if (++i < w.data.values.length) {
@@ -334,17 +349,17 @@ function renderDisplay(w) {
 
         w.animation = window.requestAnimationFrame(drawStep);
     } else {
-        w.data.values.forEach(drawRow, { context: context, x: w.x, y: w.y, z: w.z, yStep: w.yStep });
+        w.data.values.forEach(drawRow, { context: context, x: w.x, y: w.y, z: w.z });
     }
 }
 
-// Draw one row of data.
-// Computes the rectangle height using the next time step.
+// Draw one row/timestep of data.
+// Computes the rectangle height using the next time step, or if not available, the previous time step.
 // TODO: Memoize this function for better performance.
-function drawRow(row, i, array) {
-    for (j = 0; j < row.length; ++j) {
-        var nextDateTime = (i != array.length - 1 && j < array[i + 1].length) ? +array[i + 1][j].dateTime : +row[j].dateTime + this.yStep;
-        this.context.fillStyle = this.z(row[j].dB);
-        this.context.fillRect(this.x(row[j].freq), this.y(row[j].dateTime), this.x(row[j].freq + w.data.freqStep) - this.x(row[j].freq), this.y(nextDateTime) - this.y(row[j].dateTime));
+function drawRow(time, i, array) {
+    for (j = 0; j < time.values.length; ++j) {
+        var rowWidth = (i != array.length - 1 && j < array[i + 1].values.length) ? this.y(+array[i + 1].dateTime) - this.y(+time.dateTime): this.y(+time.dateTime) - this.y(+array[i - 1].dateTime);
+        this.context.fillStyle = this.z(time.values[j].dB);
+        this.context.fillRect(this.x(time.values[j].freq), this.y(time.dateTime), this.x(time.values[j].freq + w.data.freqStep) - this.x(time.values[j].freq), rowWidth);
     }
 }
