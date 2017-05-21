@@ -176,10 +176,10 @@ function parseCSVData(response) {
 
         results = [];
         for (i = 6; i < d.length; i++) {
-            var dB = +d[i]; // dB
-
-            // Skip NaN results
-            if (isNaN(dB)) continue;
+            var dB = +d[i];
+            // Clamp NaN results or unrecognized string parses
+            if (isNaN(dB))
+                dB = dbRange[0];
 
             dbRange = [Math.min(dbRange[0], dB), Math.max(dbRange[1], dB)];
 
@@ -334,7 +334,7 @@ function renderDisplay(w) {
     if (w.isAnimatable && window.requestAnimationFrame) {
         var i = 0;
         var drawStep = function(timestamp) {
-            drawRow.call({ context: context, x: w.x, y: w.y, z: w.z }, w.data.values[i], i, w.data.values);
+            drawRow.call({ context: context, x: w.x, y: w.y, z: w.z }, i, w.data.values);
 
             // Cache the image data if done
             if (++i < w.data.values.length) {
@@ -356,10 +356,10 @@ function renderDisplay(w) {
 // Draw one row/timestep of data.
 // Computes the rectangle height using the next time step, or if not available, the previous time step.
 // TODO: Memoize this function for better performance.
-function drawRow(time, i, array) {
-    for (j = 0; j < time.values.length; ++j) {
-        var rowWidth = (i != array.length - 1 && j < array[i + 1].values.length) ? this.y(+array[i + 1].dateTime) - this.y(+time.dateTime): this.y(+time.dateTime) - this.y(+array[i - 1].dateTime);
-        this.context.fillStyle = this.z(time.values[j].dB);
-        this.context.fillRect(this.x(time.values[j].freq), this.y(time.dateTime), this.x(time.values[j].freq + w.data.freqStep) - this.x(time.values[j].freq), rowWidth);
+function drawRow(i, array) {
+    for (j = 0; j < array[i].values.length; ++j) {
+        var rowWidth = (i != array.length - 1 && j < array[i + 1].values.length) ? this.y(+array[i + 1].dateTime) - this.y(+array[i].dateTime): this.y(+array[i].dateTime) - this.y(+array[i - 1].dateTime);
+        this.context.fillStyle = this.z(array[i].values[j].dB);
+        this.context.fillRect(this.x(array[i].values[j].freq), this.y(array[i].dateTime), this.x(array[i].values[j].freq + w.data.freqStep) - this.x(array[i].values[j].freq), rowWidth);
     }
 }
