@@ -166,7 +166,7 @@ function parseCSVData(response) {
     var freqStep = 0,
         freqRange = [Number.MAX_VALUE, Number.MIN_VALUE],
         timeRange = [Number.MAX_VALUE, Number.MIN_VALUE],
-        dbRange = [Number.MAX_VALUE, Number.MIN_VALUE];
+        dbRange = [Number.MAX_VALUE, -Number.MAX_VALUE]; // max init must be -inf: dB values are all negative, so Number.MIN_VALUE (tiny positive) would stick as a bogus 0.00 max
 
     function parseRow(d) {
         var dateTime = parser(d[0] + d[1]), // date + time
