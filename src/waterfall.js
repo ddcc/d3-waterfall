@@ -349,7 +349,9 @@ function renderDisplay(w) {
 
         w.animation = window.requestAnimationFrame(drawStep);
     } else {
-        w.data.values.forEach(drawRow, { context: context, x: w.x, y: w.y, z: w.z });
+        // forEach passes (element, index, array) but drawRow takes (i, array); adapt or nothing draws
+        var self = { context: context, x: w.x, y: w.y, z: w.z };
+        w.data.values.forEach(function (d, i, array) { drawRow.call(self, i, array); });
     }
 }
 
