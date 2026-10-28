@@ -9,6 +9,7 @@ a, a:visited {
 
 select {
     position: relative;
+    z-index: 1; /* above the transparent svg/zoom rect, which otherwise swallows clicks */
 }
 
 div.tooltip {
